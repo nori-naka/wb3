@@ -394,11 +394,13 @@ table{
 table th{
   border-bottom: solid 2px #fb5144;
   padding: 10px 0;
+  width: 50%;
 }
 
 table td{
   border-bottom: solid 2px #ddd;
   text-align: center;
   padding: 10px 0;
+  width: 50%;
 }
 </style>
