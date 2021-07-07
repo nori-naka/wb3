@@ -21,14 +21,14 @@
         </div>
         <div style="position: relative;">
           <table>
-            <tr><th>着信側(kbps)</th><td>{{ recv_rate }}kbps</td></tr>
+            <tr><th>着信側(速度/パケットロス/ジッタ)</th><td><span class="span_center">{{ recv_rate }}kbps</span> / <span class="span_center">{{ packetsLost }}</span> / <span class="span_center">{{ Number(jitter).toFixed(3) }}</span></td></tr>
             <tr><th>幅@フレーム数</th><td>{{ out_width }}@{{ out_fps }}fps</td></tr>
             <tr><th>CODEC</th><td>{{ out_codec }}</td></tr>
           </table>
         </div>
       </div>
     </div>
-    <select-cam @selected_cam="selected_cam" v-if="showed_selectCam" :x="x" :y="y"></select-cam>
+    <select-cam @selected_cam="selected_cam" v-if="showed_selectCam" :x="x_cam" :y="y_cam"></select-cam>
     <div class="param_area">
       <span>カメラパラメータ</span>
       <input type="text" v-model="const_width" placeholder="幅">
@@ -78,10 +78,12 @@ export default {
       out_codec: "",
       recv_rate: "",
       showed_selectCam: false,
-      x: 0,
-      y: 0,
+      x_cam: 0,
+      y_cam: 0,
       devId: null,
-      long_touch_id: null
+      long_touch_id: null,
+      packetsLost: 0,
+      jitter: 0
     }
   },
   async mounted() {
@@ -92,8 +94,8 @@ export default {
   methods: {
     long_touch_start(ev) {
       document.addEventListener("mouseup", this.long_touch_stop, false);
-      this.x = ev.pageX;
-      this.y = ev.pageY;
+      this.x_cam = ev.pageX;
+      this.y_cam = ev.pageY;
       this.long_touch_id = setTimeout(() => {
         document.removeEventListener("mouseup", this.long_touch_stop, false);
         this.showed_selectCam = true;
@@ -108,11 +110,6 @@ export default {
       }
       this.long_touch_id = null;
     },
-    // show_selectCam(ev) {
-    //   this.x = ev.pageX;
-    //   this.y = ev.pageY;
-    //   this.showed_selectCam = true;
-    // },
     selected_cam(id) {
       console.log(id);
       this.devId = id;
@@ -167,22 +164,36 @@ export default {
       this.clearId["recv"] = setInterval(async () => {
         const out_types = {
           "codec": ["codecType", "mimeType"],
-          "inbound-rtp": ["frameWidth", "framesPerSecond", "headerBytesReceived", "bytesReceived"]
+          "inbound-rtp": 
+            [
+              "frameWidth",
+              "framesPerSecond", 
+              "headerBytesReceived", 
+              "bytesReceived",
+              "packetsReceived",
+              "packetsLost",
+              "jitter"
+            ]
         };
         const res_out_stats = {}
         await this.get_stats(recv, out_types, res_out_stats);
+        // console.table(res_out_stats["inbound-rtp"]);
         this.out_codec = res_out_stats.codec.mimeType;
         // FPS
         this.out_fps = res_out_stats["inbound-rtp"].framesPerSecond;
         // WIDTH
         this.out_width = res_out_stats["inbound-rtp"].frameWidth;
+        // packetsLost
+        this.packetsLost = res_out_stats["inbound-rtp"].packetsLost;
+        // jitter
+        this.jitter = res_out_stats["inbound-rtp"].jitter;
         // Rate(Mbps)
         const header_bytes = res_out_stats["inbound-rtp"].headerBytesReceived;
         const recv_bytes = res_out_stats["inbound-rtp"].bytesReceived;
         const timestamp = res_out_stats["inbound-rtp"].timestamp;
         if (this.last_timestamp) {
           const _rate = (header_bytes - this.last_header_bytes + recv_bytes - this.last_recv_bytes) * 8.0 / (timestamp - this.last_timestamp);
-          this.recv_rate = _rate.toLocaleString(undefined, { maximumFractionDigits: 2 })
+          this.recv_rate = Number(_rate).toFixed(2).toLocaleString()
         }
         this.last_header_bytes = header_bytes;
         this.last_recv_bytes = recv_bytes
@@ -358,6 +369,10 @@ input[type="text"] {
 }
 span {
   padding: 10px 20px 10px 0;
+}
+.span_center {
+  text-align: center;
+  width: 50%;
 }
 
 .param_area {
